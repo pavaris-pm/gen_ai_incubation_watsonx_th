@@ -128,7 +128,7 @@ def translate_to_thai(sentence: str, choice: bool) -> str:
         raise ValueError(f"Translation failed: {str(e)}") from e
 
 @st.cache_data
-def read_pdf(uploaded_files, chunk_size=250, chunk_overlap=20):
+def read_pdf(uploaded_files, chunk_size=600, chunk_overlap=60):
     translated_docs = []
 
     for uploaded_file in uploaded_files:
