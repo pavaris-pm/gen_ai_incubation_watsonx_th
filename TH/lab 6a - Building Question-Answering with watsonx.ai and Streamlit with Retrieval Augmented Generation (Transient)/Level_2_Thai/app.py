@@ -20,6 +20,9 @@ from PIL import Image
 from googletrans import Translator
 import requests
 
+import fitz
+from PIL import Image
+
 from langChainInterface import LangChainInterface
 
 # Most GENAI logs are at Debug level.
@@ -128,6 +131,47 @@ def translate_to_thai(sentence: str, choice: bool) -> str:
         # Handle translation-related issues (e.g., network error, unexpected API response)
         raise ValueError(f"Translation failed: {str(e)}") from e
 
+def formatting_docs(translated_documents, width=100):
+    split_text = translated_documents.split("ข้อมูลเมตา=")
+    formatted_text = "ข้อมูลเมตา=" + split_text[1]  # "ข้อมูลเมตา=" is added to the second part
+    return textwrap.fill(split_text[0], width=width) + "\n" + formatted_text
+
+def open_pdf(pdf_path, page_num):
+    # Opening the PDF file and creating a handle for it
+    file_handle = fitz.open(pdf_path)
+    
+    # The page no. denoted by the index would be loaded
+    page = file_handle[page_num]
+    
+    # Set the desired DPI (e.g., 200)
+    zoom_x = 2.0  # horizontal zoom
+    zoom_y = 2.0  # vertical zoom
+    mat = fitz.Matrix(zoom_x, zoom_y)  # zoom factor 2 in each dimension
+    
+    # Obtaining the pixelmap of the page
+    page_img = page.get_pixmap(matrix=mat)
+    
+    # Saving the pixelmap into a png image file
+    page_img.save('PDF_page_high_res.png')
+    
+    # Reading the PNG image file using pillow
+    img = Image.open('PDF_page_high_res.png')
+    
+    # Displaying the png image file using an image viewer
+    img.show()
+
+
+def format_text(i):
+    # Chunk 1    
+    translated_documents = translate_to_thai(docs[i].page_content, True)
+    source = docs[i].metadata
+    full_text = f"""Content: 
+    {translated_documents}
+
+Source: Page {source["page"] + 1}
+    """
+    return full_text
+
 @st.cache_data
 def read_pdf(uploaded_files, chunk_size=600, chunk_overlap=60):
     translated_docs = []
@@ -183,17 +227,20 @@ if user_question := st.text_input(
     docs = db.similarity_search(translated_user_input)
     params = {
         GenParams.DECODING_METHOD: "greedy",
-        GenParams.MIN_NEW_TOKENS: 30,
+        GenParams.MIN_NEW_TOKENS: 10,
         GenParams.MAX_NEW_TOKENS: 300,
         GenParams.TEMPERATURE: 0.0,
+        GenParams.STOP_SEQUENCES: ['END_KEY'],
         # GenParams.TOP_K: 100,
         # GenParams.TOP_P: 1,
-        GenParams.REPETITION_PENALTY: 1
+        GenParams.REPETITION_PENALTY: 1.01
     }
     print('docs'+"*"*5)
     print(docs)
     print("*"*5)
-    model_llm = LangChainInterface(model=ModelTypes.LLAMA_2_70B_CHAT.value, credentials=creds, params=params, project_id=project_id)
+    # model_llm = LangChainInterface(model=ModelTypes.LLAMA_2_70B_CHAT.value, credentials=creds, params=params, project_id=project_id)
+    model_llm = LangChainInterface(model=ModelTypes.GRANITE_13B_CHAT.value, credentials=creds, params=params, project_id=project_id)
+    
     # chain = load_qa_chain(model_llm, chain_type="stuff")
 
     # response = chain.run(input_documents=docs, question=translated_user_input)
@@ -201,16 +248,49 @@ if user_question := st.text_input(
     
 
     knowledge_based_template = (
-        open("assets/llama2-prompt-template-rag.txt", encoding="utf8").read().format(
+        open("assets/granite-prompt-template-rag.txt", encoding="utf8").read().format(
         )
     )
 
     custom_prompt = PromptTemplate(template=knowledge_based_template, input_variables=["context", "question"])
 
+    print(custom_prompt.format(question=translated_user_input, context=docs))
     response = model_llm(custom_prompt.format(question=translated_user_input, context=docs))
 
-    translated_response = translate_to_thai(response, True)
+    full_docs = ""
+    
+    print("\n here \n", docs)
+    
+    current_directory = os.getcwd()
+    pdf_filename = "thai_leave_policy.pdf"
+    pdf_path = os.path.join(current_directory, pdf_filename)
+    # Path of the PDF file
 
+    # Response
+    translated_response = translate_to_thai(response, True)
+    translated_response = translated_response.replace("<|endoftext|>", "")
     st.text_area(label="Model Response", value=translated_response, height=100)
+
+
+
+    st.text_area(label="Relevent chunk 1", value=format_text(0), height=100)
+    if st.button('View source 1'):
+        open_pdf(pdf_filename, docs[0].metadata["page"])
+
+    st.text_area(label="Relevent chunk 2", value=format_text(1), height=100)
+    if st.button('View source 2'):
+        open_pdf(pdf_filename, docs[1].metadata["page"])
+
+
+    st.text_area(label="Relevent chunk 3", value=format_text(2), height=100)
+    if st.button('View source 3'):
+        open_pdf(pdf_filename, docs[2].metadata["page"])
+
+
+    st.text_area(label="Relevent chunk 4", value=format_text(3), height=100)
+    if st.button('View source 4'):
+        open_pdf(pdf_filename, docs[3].metadata["page"])
+
+
     st.write()
 
