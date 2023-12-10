@@ -17,7 +17,6 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.vectorstores import FAISS, Chroma
 from langchain.prompts import PromptTemplate
 from PIL import Image
-from googletrans import Translator
 import requests
 import json
 
