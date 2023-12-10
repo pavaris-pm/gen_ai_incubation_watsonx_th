@@ -19,6 +19,7 @@ from langchain.prompts import PromptTemplate
 from PIL import Image
 from googletrans import Translator
 import requests
+import json
 
 import fitz
 from PIL import Image
@@ -45,6 +46,8 @@ handler = StdOutCallbackHandler()
 api_key = os.getenv("API_KEY", None)
 ibm_cloud_url = os.getenv("IBM_CLOUD_URL", None)
 project_id = os.getenv("PROJECT_ID", None)
+neural_seek_url = os.getenv("NEURAL_SEEK_URL", None)
+neural_seek_api_key = os.getenv("NEURAL_SEEK_API_KEY", None)
 
 if api_key is None or ibm_cloud_url is None or project_id is None:
     print("Ensure you copied the .env file that you created earlier into the same directory as this notebook")
@@ -107,29 +110,25 @@ def translate_large_text(text, translate_function, choice, max_length=500):
     return full_translated_text
 
 
-def translate_to_thai(sentence: str, choice: bool) -> str:
-    """
-    Translate the text between English and Thai based on the 'choice' flag.
-    
-    Args:
-        sentence (str): The text to translate.
-        choice (bool): If True, translates text to Thai. If False, translates to English.
-
-    Returns:
-        str: The translated text.
-    """
-    translator = Translator()
-    try:
-        if choice:
-            # Translate to Thai
-            translate = translator.translate(sentence, dest='th')
-        else:
-            # Translate to English
-            translate = translator.translate(sentence, dest='en')
-        return translate.text
-    except Exception as e:
-        # Handle translation-related issues (e.g., network error, unexpected API response)
-        raise ValueError(f"Translation failed: {str(e)}") from e
+def translate_to_thai(sentence, choice):
+    url = neural_seek_url
+    headers = {
+        "accept": "application/json",
+        "apikey": neural_seek_api_key,  # Replace with your actual API key
+        "Content-Type": "application/json"
+    }
+    if choice == True:
+        target = "th"
+    else:
+        target = "en"
+    data = {
+        "text": [
+            sentence
+        ],
+        "target": target
+    }
+    response = requests.post(url, headers=headers, data=json.dumps(data))
+    return json.loads(response.text)['translations'][0]
 
 def formatting_docs(translated_documents, width=100):
     split_text = translated_documents.split("ข้อมูลเมตา=")
@@ -161,16 +160,6 @@ def open_pdf(pdf_path, page_num):
     img.show()
 
 
-def format_text(i):
-    # Chunk 1    
-    translated_documents = translate_to_thai(docs[i].page_content, True)
-    source = docs[i].metadata
-    full_text = f"""Content: 
-    {translated_documents}
-
-Source: Page {source["page"] + 1}
-    """
-    return full_text
 
 @st.cache_data
 def read_pdf(uploaded_files, chunk_size=600, chunk_overlap=60):
@@ -238,17 +227,12 @@ if user_question := st.text_input(
     print('docs'+"*"*5)
     print(docs)
     print("*"*5)
-    # model_llm = LangChainInterface(model=ModelTypes.LLAMA_2_70B_CHAT.value, credentials=creds, params=params, project_id=project_id)
-    model_llm = LangChainInterface(model=ModelTypes.GRANITE_13B_CHAT.value, credentials=creds, params=params, project_id=project_id)
-    
-    # chain = load_qa_chain(model_llm, chain_type="stuff")
-
-    # response = chain.run(input_documents=docs, question=translated_user_input)
-
+    model_llm = LangChainInterface(model=ModelTypes.LLAMA_2_70B_CHAT.value, credentials=creds, params=params, project_id=project_id)
+    # model_llm = LangChainInterface(model=ModelTypes.GRANITE_13B_CHAT.value, credentials=creds, params=params, project_id=project_id)
     
 
     knowledge_based_template = (
-        open("assets/granite-prompt-template-rag.txt", encoding="utf8").read().format(
+        open("assets/llama2-prompt-template-rag.txt", encoding="utf8").read().format(
         )
     )
 
@@ -257,39 +241,10 @@ if user_question := st.text_input(
     print(custom_prompt.format(question=translated_user_input, context=docs))
     response = model_llm(custom_prompt.format(question=translated_user_input, context=docs))
 
-    full_docs = ""
-    
-    print("\n here \n", docs)
-    
-    current_directory = os.getcwd()
-    pdf_filename = "thai_leave_policy.pdf"
-    pdf_path = os.path.join(current_directory, pdf_filename)
-    # Path of the PDF file
-
     # Response
     translated_response = translate_to_thai(response, True)
     translated_response = translated_response.replace("<|endoftext|>", "")
     st.text_area(label="Model Response", value=translated_response, height=100)
-
-
-
-    st.text_area(label="Relevent chunk 1", value=format_text(0), height=100)
-    if st.button('View source 1'):
-        open_pdf(pdf_filename, docs[0].metadata["page"])
-
-    st.text_area(label="Relevent chunk 2", value=format_text(1), height=100)
-    if st.button('View source 2'):
-        open_pdf(pdf_filename, docs[1].metadata["page"])
-
-
-    st.text_area(label="Relevent chunk 3", value=format_text(2), height=100)
-    if st.button('View source 3'):
-        open_pdf(pdf_filename, docs[2].metadata["page"])
-
-
-    st.text_area(label="Relevent chunk 4", value=format_text(3), height=100)
-    if st.button('View source 4'):
-        open_pdf(pdf_filename, docs[3].metadata["page"])
 
 
     st.write()
