@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from ibm_watson_machine_learning.metanames import GenTextParamsMetaNames as GenParams
 from ibm_watson_machine_learning.foundation_models.utils.enums import ModelTypes
 from langchain.callbacks import StdOutCallbackHandler
-from langchain.chains.question_answering import load_qa_chain
+# from langchain.chains.question_answering import load_qa_chain
 from langchain.document_loaders import PyPDFLoader
 from langchain.embeddings import (HuggingFaceHubEmbeddings,
                                   HuggingFaceInstructEmbeddings)
@@ -19,6 +19,10 @@ from langchain.prompts import PromptTemplate
 from PIL import Image
 from googletrans import Translator
 import requests
+import json
+
+import fitz
+from PIL import Image
 
 from langChainInterface import LangChainInterface
 
@@ -42,6 +46,8 @@ handler = StdOutCallbackHandler()
 api_key = os.getenv("API_KEY", None)
 ibm_cloud_url = os.getenv("IBM_CLOUD_URL", None)
 project_id = os.getenv("PROJECT_ID", None)
+neural_seek_url = os.getenv("NEURAL_SEEK_URL", None)
+neural_seek_api_key = os.getenv("NEURAL_SEEK_API_KEY", None)
 
 if api_key is None or ibm_cloud_url is None or project_id is None:
     print("Ensure you copied the .env file that you created earlier into the same directory as this notebook")
@@ -104,29 +110,56 @@ def translate_large_text(text, translate_function, choice, max_length=500):
     return full_translated_text
 
 
-def translate_to_thai(sentence: str, choice: bool) -> str:
-    """
-    Translate the text between English and Thai based on the 'choice' flag.
-    
-    Args:
-        sentence (str): The text to translate.
-        choice (bool): If True, translates text to Thai. If False, translates to English.
+def translate_to_thai(sentence, choice):
+    url = neural_seek_url
+    headers = {
+        "accept": "application/json",
+        "apikey": neural_seek_api_key,  # Replace with your actual API key
+        "Content-Type": "application/json"
+    }
+    if choice == True:
+        target = "th"
+    else:
+        target = "en"
+    data = {
+        "text": [
+            sentence
+        ],
+        "target": target
+    }
+    response = requests.post(url, headers=headers, data=json.dumps(data))
+    return json.loads(response.text)['translations'][0]
 
-    Returns:
-        str: The translated text.
-    """
-    translator = Translator()
-    try:
-        if choice:
-            # Translate to Thai
-            translate = translator.translate(sentence, dest='th')
-        else:
-            # Translate to English
-            translate = translator.translate(sentence, dest='en')
-        return translate.text
-    except Exception as e:
-        # Handle translation-related issues (e.g., network error, unexpected API response)
-        raise ValueError(f"Translation failed: {str(e)}") from e
+def formatting_docs(translated_documents, width=100):
+    split_text = translated_documents.split("ข้อมูลเมตา=")
+    formatted_text = "ข้อมูลเมตา=" + split_text[1]  # "ข้อมูลเมตา=" is added to the second part
+    return textwrap.fill(split_text[0], width=width) + "\n" + formatted_text
+
+def open_pdf(pdf_path, page_num):
+    # Opening the PDF file and creating a handle for it
+    file_handle = fitz.open(pdf_path)
+    
+    # The page no. denoted by the index would be loaded
+    page = file_handle[page_num]
+    
+    # Set the desired DPI (e.g., 200)
+    zoom_x = 2.0  # horizontal zoom
+    zoom_y = 2.0  # vertical zoom
+    mat = fitz.Matrix(zoom_x, zoom_y)  # zoom factor 2 in each dimension
+    
+    # Obtaining the pixelmap of the page
+    page_img = page.get_pixmap(matrix=mat)
+    
+    # Saving the pixelmap into a png image file
+    page_img.save('PDF_page_high_res.png')
+    
+    # Reading the PNG image file using pillow
+    img = Image.open('PDF_page_high_res.png')
+    
+    # Displaying the png image file using an image viewer
+    img.show()
+
+
 
 @st.cache_data
 def read_pdf(uploaded_files, chunk_size=600, chunk_overlap=60):
@@ -183,21 +216,19 @@ if user_question := st.text_input(
     docs = db.similarity_search(translated_user_input)
     params = {
         GenParams.DECODING_METHOD: "greedy",
-        GenParams.MIN_NEW_TOKENS: 30,
+        GenParams.MIN_NEW_TOKENS: 10,
         GenParams.MAX_NEW_TOKENS: 300,
         GenParams.TEMPERATURE: 0.0,
+        GenParams.STOP_SEQUENCES: ['END_KEY'],
         # GenParams.TOP_K: 100,
         # GenParams.TOP_P: 1,
-        GenParams.REPETITION_PENALTY: 1
+        GenParams.REPETITION_PENALTY: 1.01
     }
     print('docs'+"*"*5)
     print(docs)
     print("*"*5)
     model_llm = LangChainInterface(model=ModelTypes.LLAMA_2_70B_CHAT.value, credentials=creds, params=params, project_id=project_id)
-    # chain = load_qa_chain(model_llm, chain_type="stuff")
-
-    # response = chain.run(input_documents=docs, question=translated_user_input)
-
+    # model_llm = LangChainInterface(model=ModelTypes.GRANITE_13B_CHAT.value, credentials=creds, params=params, project_id=project_id)
     
 
     knowledge_based_template = (
@@ -207,10 +238,14 @@ if user_question := st.text_input(
 
     custom_prompt = PromptTemplate(template=knowledge_based_template, input_variables=["context", "question"])
 
+    print(custom_prompt.format(question=translated_user_input, context=docs))
     response = model_llm(custom_prompt.format(question=translated_user_input, context=docs))
 
+    # Response
     translated_response = translate_to_thai(response, True)
-
+    translated_response = translated_response.replace("<|endoftext|>", "")
     st.text_area(label="Model Response", value=translated_response, height=100)
+
+
     st.write()
 
