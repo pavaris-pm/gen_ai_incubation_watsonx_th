@@ -2,29 +2,18 @@ import logging
 import os
 import pickle
 import tempfile
-import textwrap
-
 import streamlit as st
 from dotenv import load_dotenv
 from ibm_watson_machine_learning.metanames import GenTextParamsMetaNames as GenParams
-from ibm_watson_machine_learning.foundation_models.utils.enums import ModelTypes
 from langchain.callbacks import StdOutCallbackHandler
-# from langchain.chains.question_answering import load_qa_chain
 from langchain.document_loaders import PyPDFLoader
-from langchain.embeddings import (HuggingFaceHubEmbeddings,
-                                  HuggingFaceInstructEmbeddings)
+from langchain.embeddings import (HuggingFaceHubEmbeddings)
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.vectorstores import FAISS, Chroma
-from langchain.prompts import PromptTemplate
+from langchain.vectorstores import FAISS
 from PIL import Image
-from googletrans import Translator
-import requests
-import json
-
-import fitz
-from PIL import Image
-
+from huggingface_hub import login
 from langChainInterface import LangChainInterface
+from function import generate_prompt, translate_to_thai, translate_large_text, language_detector
 
 # Most GENAI logs are at Debug level.
 logging.basicConfig(level=os.environ.get("LOGLEVEL", "DEBUG"))
@@ -48,6 +37,9 @@ ibm_cloud_url = os.getenv("IBM_CLOUD_URL", None)
 project_id = os.getenv("PROJECT_ID", None)
 neural_seek_url = os.getenv("NEURAL_SEEK_URL", None)
 neural_seek_api_key = os.getenv("NEURAL_SEEK_API_KEY", None)
+hgface_token = os.environ["HGFACE_TOKEN"]
+
+login(token=hgface_token, add_to_git_credential=False, write_permission=False)
 
 if api_key is None or ibm_cloud_url is None or project_id is None:
     print("Ensure you copied the .env file that you created earlier into the same directory as this notebook")
@@ -57,7 +49,7 @@ else:
         "apikey": api_key 
     }
 
-GEN_API_KEY = os.getenv("GENAI_KEY", None)
+
 
 # Sidebar contents
 with st.sidebar:
@@ -75,91 +67,25 @@ with st.sidebar:
     st.image(image, caption='Powered by watsonx.ai')
     max_new_tokens= st.number_input('max_new_tokens',1,1024,value=300)
     min_new_tokens= st.number_input('min_new_tokens',0,value=15)
-    repetition_penalty = st.number_input('repetition_penalty',1,2,value=2)
+    repetition_penalty = st.number_input('repetition_penalty',1,2,value=1)
     decoding = st.text_input(
             "Decoding",
             "greedy",
             key="placeholder",
         )
     
+params = {
+    GenParams.DECODING_METHOD: decoding,
+    GenParams.MIN_NEW_TOKENS: min_new_tokens,
+    GenParams.MAX_NEW_TOKENS: max_new_tokens,
+    GenParams.TEMPERATURE: 0.0,
+    GenParams.STOP_SEQUENCES: ['END_KEY'],
+    # GenParams.TOP_K: 100,
+    # GenParams.TOP_P: 1,
+    GenParams.REPETITION_PENALTY: repetition_penalty
+}
+    
 uploaded_files = st.file_uploader("Choose a PDF file", accept_multiple_files=True)
-
-def translate_large_text(text, translate_function, choice, max_length=500):
-    """
-    Break down large text, translate each part, and merge the results.
-
-    :param text: str, The large body of text to translate.
-    :param translate_function: function, The translation function to use.
-    :param max_length: int, The maximum character length each split of text should have.
-    :return: str, The translated text.
-    """
-    
-    # Split the text into parts of maximum allowed character length.
-    text_parts = textwrap.wrap(text, max_length, break_long_words=True, replace_whitespace=False)
-
-    translated_text_parts = []
-
-    for part in text_parts:
-        # Translate each part of the text.
-        translated_part = translate_function(part, choice)  # Assuming 'False' is a necessary argument in the actual function.
-        translated_text_parts.append(translated_part)
-
-    # Combine the translated parts.
-    full_translated_text = ' '.join(translated_text_parts)
-
-    return full_translated_text
-
-
-def translate_to_thai(sentence, choice):
-    url = neural_seek_url
-    headers = {
-        "accept": "application/json",
-        "apikey": neural_seek_api_key,  # Replace with your actual API key
-        "Content-Type": "application/json"
-    }
-    if choice == True:
-        target = "th"
-    else:
-        target = "en"
-    data = {
-        "text": [
-            sentence
-        ],
-        "target": target
-    }
-    response = requests.post(url, headers=headers, data=json.dumps(data))
-    return json.loads(response.text)['translations'][0]
-
-def formatting_docs(translated_documents, width=100):
-    split_text = translated_documents.split("ข้อมูลเมตา=")
-    formatted_text = "ข้อมูลเมตา=" + split_text[1]  # "ข้อมูลเมตา=" is added to the second part
-    return textwrap.fill(split_text[0], width=width) + "\n" + formatted_text
-
-def open_pdf(pdf_path, page_num):
-    # Opening the PDF file and creating a handle for it
-    file_handle = fitz.open(pdf_path)
-    
-    # The page no. denoted by the index would be loaded
-    page = file_handle[page_num]
-    
-    # Set the desired DPI (e.g., 200)
-    zoom_x = 2.0  # horizontal zoom
-    zoom_y = 2.0  # vertical zoom
-    mat = fitz.Matrix(zoom_x, zoom_y)  # zoom factor 2 in each dimension
-    
-    # Obtaining the pixelmap of the page
-    page_img = page.get_pixmap(matrix=mat)
-    
-    # Saving the pixelmap into a png image file
-    page_img.save('PDF_page_high_res.png')
-    
-    # Reading the PNG image file using pillow
-    img = Image.open('PDF_page_high_res.png')
-    
-    # Displaying the png image file using an image viewer
-    img.show()
-
-
 
 @st.cache_data
 def read_pdf(uploaded_files, chunk_size=600, chunk_overlap=60):
@@ -195,7 +121,7 @@ def read_pdf(uploaded_files, chunk_size=600, chunk_overlap=60):
 
 @st.cache_data
 def read_push_embeddings():
-    embeddings = HuggingFaceHubEmbeddings(repo_id="sentence-transformers/all-MiniLM-L6-v2")
+    embeddings = HuggingFaceHubEmbeddings(repo_id="sentence-transformers/all-MiniLM-L6-v2", huggingfacehub_api_token=hgface_token)
     if os.path.exists("db.pickle"):
         with open("db.pickle",'rb') as file_name:
             db = pickle.load(file_name)
@@ -210,42 +136,26 @@ def read_push_embeddings():
 if user_question := st.text_input(
     "Ask a question about your Policy Document:"
 ):  
+    users_language = language_detector(user_question)
     translated_user_input = translate_to_thai(user_question, False)
     docs = read_pdf(uploaded_files)
     db = read_push_embeddings()
     docs = db.similarity_search(translated_user_input)
-    params = {
-        GenParams.DECODING_METHOD: "greedy",
-        GenParams.MIN_NEW_TOKENS: 10,
-        GenParams.MAX_NEW_TOKENS: 300,
-        GenParams.TEMPERATURE: 0.0,
-        GenParams.STOP_SEQUENCES: ['END_KEY'],
-        # GenParams.TOP_K: 100,
-        # GenParams.TOP_P: 1,
-        GenParams.REPETITION_PENALTY: 1.01
-    }
     print('docs'+"*"*5)
     print(docs)
     print("*"*5)
-    model_llm = LangChainInterface(model=ModelTypes.LLAMA_2_70B_CHAT.value, credentials=creds, params=params, project_id=project_id)
-    # model_llm = LangChainInterface(model=ModelTypes.GRANITE_13B_CHAT.value, credentials=creds, params=params, project_id=project_id)
-    
-
-    knowledge_based_template = (
-        open("assets/llama2-prompt-template-rag.txt", encoding="utf8").read().format(
-        )
-    )
-
-    custom_prompt = PromptTemplate(template=knowledge_based_template, input_variables=["context", "question"])
-
-    print(custom_prompt.format(question=translated_user_input, context=docs))
-    response = model_llm(custom_prompt.format(question=translated_user_input, context=docs))
+    # model_llm = LangChainInterface(model=meta-llama/llama-2-70b-chat, credentials=creds, params=params, project_id=project_id)
+    model_llm = LangChainInterface(model="meta-llama/llama-2-13b-chat", credentials=creds, params=params, project_id=project_id)
+    custom_prompt = generate_prompt(question=translated_user_input, context=docs, model_type="llama-2")
+    print("\nCUSTOM PROMPT:\n", custom_prompt)
+    response = model_llm(custom_prompt)
 
     # Response
-    translated_response = translate_to_thai(response, True)
+    if users_language == "th":
+        translated_response = translate_to_thai(response, True)
+    else:
+        translated_response = response
     translated_response = translated_response.replace("<|endoftext|>", "")
-    st.text_area(label="Model Response", value=translated_response, height=100)
-
-
+    st.text_area(label="Model Response", value=translated_response, height=500)
     st.write()
 

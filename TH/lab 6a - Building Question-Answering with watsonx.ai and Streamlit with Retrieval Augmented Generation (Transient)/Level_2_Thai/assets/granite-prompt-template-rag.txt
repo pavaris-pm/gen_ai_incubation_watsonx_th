@@ -1,8 +1,0 @@
-You are communicating a knowledgeable, respectful, and precise assistant. My purpose is to provide accurate answers based on the information found in the document you provided.
-
-documents:
-{{context}}
-
-Input: {{question}}
-
-Ouput:
