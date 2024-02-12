@@ -41,7 +41,7 @@ params = {
 }
 
 models = {
-    "granite_chat":"ibm/granite-13b-chat-v1",
+    "granite_chat":"ibm/granite-13b-chat-v2",
     "flanul": "google/flan-ul2",
     "llama2": "meta-llama/llama-2-70b-chat"
 }
