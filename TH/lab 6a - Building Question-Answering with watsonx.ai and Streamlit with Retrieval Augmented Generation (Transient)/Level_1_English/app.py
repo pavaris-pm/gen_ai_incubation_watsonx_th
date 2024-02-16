@@ -38,6 +38,7 @@ handler = StdOutCallbackHandler()
 api_key = os.getenv("API_KEY", None)
 ibm_cloud_url = os.getenv("IBM_CLOUD_URL", None)
 project_id = os.getenv("PROJECT_ID", None)
+hgface_token = os.environ["HGFACE_TOKEN"]
 
 if api_key is None or ibm_cloud_url is None or project_id is None:
     print("Ensure you copied the .env file that you created earlier into the same directory as this notebook")
@@ -89,7 +90,7 @@ def read_pdf(uploaded_files,chunk_size =250,chunk_overlap=20):
 
 @st.cache_data
 def read_push_embeddings():
-    embeddings = HuggingFaceHubEmbeddings(repo_id="sentence-transformers/all-MiniLM-L6-v2")
+    embeddings = HuggingFaceHubEmbeddings(repo_id="sentence-transformers/all-MiniLM-L6-v2", huggingfacehub_api_token=hgface_token)
     if os.path.exists("db.pickle"):
         with open("db.pickle",'rb') as file_name:
             db = pickle.load(file_name)
