@@ -15,7 +15,7 @@ from langchain.embeddings import (HuggingFaceHubEmbeddings,
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.vectorstores import FAISS, Chroma
 from PIL import Image
-
+from sentence_transformers import SentenceTransformer, models
 from langChainInterface import LangChainInterface
 
 # Most GENAI logs are at Debug level.
@@ -38,6 +38,9 @@ handler = StdOutCallbackHandler()
 api_key = os.getenv("API_KEY", None)
 ibm_cloud_url = os.getenv("IBM_CLOUD_URL", None)
 project_id = os.getenv("PROJECT_ID", None)
+neural_seek_url = os.getenv("NEURAL_SEEK_URL", None)
+neural_seek_api_key = os.getenv("NEURAL_SEEK_API_KEY", None)
+hgface_token = os.environ["HGFACE_TOKEN"]
 
 if api_key is None or ibm_cloud_url is None or project_id is None:
     print("Ensure you copied the .env file that you created earlier into the same directory as this notebook")
@@ -46,6 +49,8 @@ else:
         "url": ibm_cloud_url,
         "apikey": api_key 
     }
+
+GEN_API_KEY = os.getenv("GENAI_KEY", None)
 
 # Sidebar contents
 with st.sidebar:
@@ -87,9 +92,42 @@ def read_pdf(uploaded_files,chunk_size =250,chunk_overlap=20):
              docs = text_splitter.split_documents(data)
              return docs
 
+def get_model(model_name='airesearch/wangchanberta-base-att-spm-uncased', max_seq_length=768, condition=True):
+    if condition:
+        # model_name = 'airesearch/wangchanberta-base-att-spm-uncased'
+        # model_name = "hkunlp/instructor-large"
+        word_embedding_model = models.Transformer(model_name, max_seq_length=max_seq_length)
+        pooling_model = models.Pooling(word_embedding_model.get_word_embedding_dimension(),pooling_mode='cls') # We use a [CLS] token as representation
+        model = SentenceTransformer(modules=[word_embedding_model, pooling_model])
+    return model
+
+def generate_prompt(question, context, model_type="llama-2"):
+    if model_type =="llama-2":
+        output = f"""[INST] <<SYS>>
+You are a helpful, respectful assistant. Always answer as helpfully as possible, while being safe. Your answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, or illegal content. Please ensure that your responses are socially unbiased and positive in nature. If a question does not make any sense, or is not factually coherent, explain why instead of answering something not correct. If you don't know the answer to a question, please don't share false information.
+
+You will receive HR Policy on user queries HR POLICY DETAILS, and QUESTION from user in the ''' below. Answer the question in Thai.
+'''
+HR POLICY DETAILS:
+{context}
+
+QUESTION: {question}
+'''
+Answer the QUESTION use details about 8D Report from HR POLICY DETAILS, explain your reasonings if the question is not related to REFERENCE please Answer
+“I don’t know the answer, it is not part of the provided HR Policy”.
+<</SYS>>
+
+QUESTION: {question} [/INST]
+ANSWER:
+    """
+    else:
+        return "Only llama-2 format at the moment, fill here to add other prompt templates for other model types."
+    return output
+
 @st.cache_data
 def read_push_embeddings():
-    embeddings = HuggingFaceHubEmbeddings(repo_id="sentence-transformers/all-MiniLM-L6-v2")
+    # embeddings = get_model(model_name='kornwtp/simcse-model-phayathaibert', max_seq_length=768)
+    embeddings = HuggingFaceHubEmbeddings(repo_id="sentence-transformers/all-MiniLM-L6-v2", huggingfacehub_api_token=hgface_token)
     if os.path.exists("db.pickle"):
         with open("db.pickle",'rb') as file_name:
             db = pickle.load(file_name)
@@ -116,10 +154,11 @@ if user_question := st.text_input(
         # GenParams.TOP_P: 1,
         GenParams.REPETITION_PENALTY: 1
     }
-    model_llm = LangChainInterface(model=ModelTypes.LLAMA_2_70B_CHAT.value, credentials=creds, params=params, project_id=project_id)
-    chain = load_qa_chain(model_llm, chain_type="stuff")
-
-    response = chain.run(input_documents=docs, question=user_question)
+    model_llm = LangChainInterface(model='ibm-mistralai/mixtral-8x7b-instruct-v01-q', credentials=creds, params=params, project_id=project_id)
+    
+    response = model_llm(generate_prompt(user_question, docs))
+    print(generate_prompt(user_question, docs))
+    # response = chain.run(input_documents=docs, question=user_question)
 
     st.text_area(label="Model Response", value=response, height=100)
     st.write()

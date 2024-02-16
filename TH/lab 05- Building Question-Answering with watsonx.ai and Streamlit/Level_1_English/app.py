@@ -31,10 +31,10 @@ else:
 
 # Define generation parameters 
 params = {
-    GenParams.DECODING_METHOD: "sample",
+    GenParams.DECODING_METHOD: "greedy",
     GenParams.MIN_NEW_TOKENS: 1,
     GenParams.MAX_NEW_TOKENS: 300,
-    GenParams.TEMPERATURE: 0.2,
+    # GenParams.TEMPERATURE: 0.2,
     # GenParams.TOP_K: 100,
     # GenParams.TOP_P: 1,
     GenParams.REPETITION_PENALTY: 1
@@ -43,10 +43,23 @@ params = {
 models = {
     "granite_chat":"ibm/granite-13b-chat-v2",
     "flanul": "google/flan-ul2",
-    "llama2": "meta-llama/llama-2-70b-chat"
+    "llama2": "meta-llama/llama-2-70b-chat",
+    "mixstral": 'ibm-mistralai/mixtral-8x7b-instruct-v01-q'
 }
 # define LangChainInterface model
-llm = LangChainInterface(model=models["granite_chat"], credentials=creds, params=params, project_id=project_id)
+llm = LangChainInterface(model=models["mixstral"], credentials=creds, params=params, project_id=project_id)
+
+def prompt_template(question):
+    text = f"""[INST] <<SYS>>
+You are a multilingual, helpful, respectful and honest assistant. Please always answer as helpfully as possible, while being safe. Your answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, or illegal content. Please ensure that your responses are socially unbiased and positive in nature.
+
+If a question does not make any sense, or is not factually coherent, explain why instead of answering something not correct. If you don't know the answer to a question, please don't share false information.
+
+As a multilingual assistant, you must respond and follow instructions in the native language of the user by default, unless told otherwise. Your response should adapt to the norms and customs of the respective language and culture.
+<</SYS>>
+
+QUESTION: {question} [/INST] ANSWER:"""
+    return text
 
 # Title for the app
 st.title('🤖 Our First Q&A Front End')
@@ -55,6 +68,8 @@ prompt = st.text_input('Enter your prompt here')
 # If a user hits enter
 if prompt: 
     # Pass the prompt to the llm
-    response = llm(prompt)
+    response = llm(prompt_template(prompt))
     # Write the output to the screen
     st.write(response)
+
+# เมืองหลวงประเทษไทย คือที่ไหน
