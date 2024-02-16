@@ -13,4 +13,4 @@ So I'm guessing you've been hearing a bit about watsonx. Well...now you can buil
 2. Go on Profile (avatar) and click on "Settings".
 3. Go to "Access Token" and click on "New token".
 4. Give a user friendly name to the token and permission=write. Then click on on generate token.
-5. Copy the token and add it in your .env file. `HUGGINGFACEHUB_API_TOKEN=<your_new_huggingface_access_token>`
+5. Copy the token and add it in your .env file. `HGFACE_TOKEN=<your_new_huggingface_access_token>`
