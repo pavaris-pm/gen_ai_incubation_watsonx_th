@@ -7,6 +7,9 @@ import streamlit as st
 from dotenv import load_dotenv
 from ibm_watson_machine_learning.metanames import GenTextParamsMetaNames as GenParams
 from ibm_watson_machine_learning.foundation_models.utils.enums import ModelTypes
+from ibm_watson_machine_learning.foundation_models import Model
+from ibm_watson_machine_learning.metanames import \
+    GenTextReturnOptMetaNames as ReturnOptions
 from langchain.callbacks import StdOutCallbackHandler
 from langchain.chains.question_answering import load_qa_chain
 from langchain.document_loaders import PyPDFLoader
@@ -72,7 +75,7 @@ with st.sidebar:
     st.image(image, caption='Powered by watsonx.ai')
     max_new_tokens= st.number_input('max_new_tokens',1,1024,value=300)
     min_new_tokens= st.number_input('min_new_tokens',0,value=15)
-    repetition_penalty = st.number_input('repetition_penalty',1,2,value=2)
+    repetition_penalty = st.number_input('repetition_penalty',1,value=1)
     decoding = st.text_input(
             "Decoding",
             "greedy",
@@ -136,8 +139,17 @@ def read_push_embeddings():
     return index
 
 
+def fix_encoding(text):
+    try:
+        # Attempt to decode the text using 'ISO-8859-1' and then re-encode it in 'UTF-8'
+        fixed_text = text.encode('ISO-8859-1').decode('UTF-8')
+    except UnicodeDecodeError:
+        # If there's a decoding error, return the original text
+        fixed_text = text
+    return fixed_text
 
 
+stream = True
 # show user input
 if user_question := st.text_input(
     "Ask a question about your Policy Document:"
@@ -148,23 +160,58 @@ if user_question := st.text_input(
     D, I = vector_search(user_question, embeddings_model, index, num_results=4)
     search_results = [docs[i] for i in I[0]]
     # docs = db.similarity_search(user_question)
+    # params = {
+    #     GenParams.DECODING_METHOD: "greedy",
+    #     GenParams.MIN_NEW_TOKENS: 30,
+    #     GenParams.MAX_NEW_TOKENS: 500,
+    #     GenParams.TEMPERATURE: 0.0,
+    #     # GenParams.TOP_K: 100,
+    #     # GenParams.TOP_P: 1,
+    #     GenParams.REPETITION_PENALTY: 1
+    # }
     params = {
-        GenParams.DECODING_METHOD: "greedy",
-        GenParams.MIN_NEW_TOKENS: 30,
-        GenParams.MAX_NEW_TOKENS: 500,
-        GenParams.TEMPERATURE: 0.0,
-        # GenParams.TOP_K: 100,
-        # GenParams.TOP_P: 1,
-        GenParams.REPETITION_PENALTY: 1
+        GenParams.DECODING_METHOD: decoding,
+        GenParams.MIN_NEW_TOKENS: min_new_tokens,
+        GenParams.MAX_NEW_TOKENS: max_new_tokens,
+        # GenParams.RANDOM_SEED: 42,
+        # GenParams.TEMPERATURE: 0.7,
+        GenParams.REPETITION_PENALTY: 1,
+        GenParams.RETURN_OPTIONS: {ReturnOptions.GENERATED_TOKENS: True,
+                                    ReturnOptions.GENERATED_TOKENS: True,
+                                    ReturnOptions.INPUT_TOKENS: True}
     }
-    model_llm = LangChainInterface(model='ibm-mistralai/mixtral-8x7b-instruct-v01-q', credentials=creds, params=params, project_id=project_id)
+    # model_llm = LangChainInterface(model='ibm-mistralai/mixtral-8x7b-instruct-v01-q', credentials=creds, params=params, project_id=project_id)
+    model_llm = Model('ibm-mistralai/mixtral-8x7b-instruct-v01-q',
+                    params=params, credentials=creds,
+                    project_id=project_id)
     formated_search = format_documents(search_results)
-    response = model_llm(generate_prompt(user_question, formated_search))
+    # 
+    formatted_text_for_display = format_docs_for_display(formated_search)
     print(generate_prompt(user_question, formated_search))
     # response = chain.run(input_documents=docs, question=user_question)
     # Call the function with your formatted_docs
-    formatted_text_for_display = format_docs_for_display(formated_search)
-
-    st.text_area(label="Model Response", value=response, height=300)
+    
+    if stream == False:
+        joined_result = model_llm.generate_text(generate_prompt(user_question, formated_search))
+        st.text_area(label="Model Response", value=joined_result, height=300)
+    elif stream == True:
+        model_response_placeholder = st.empty()
+        full_response = []
+        for response in model_llm.generate_text_stream(prompt=generate_prompt(user_question, formated_search)):
+                wordstream = str(response)
+                print(response)
+                if wordstream:
+                    wordstream = fix_encoding(wordstream)
+                    full_response.append(wordstream)
+                    result = "".join(full_response).strip()
+                    with model_response_placeholder.container():
+                        # if len(result) > curr_len:
+                        print(len(result))
+                        st.markdown('---')
+                        st.markdown('#### Response:')
+                        st.markdown(result)
+                        # st.markdown(translate_large_text(result,translate_to_thai, True))
+                        st.markdown('---')
+        joined_result = "".join(full_response).strip()
     st.text_area(label="Reference", value=formatted_text_for_display, height=300)
     st.write()
