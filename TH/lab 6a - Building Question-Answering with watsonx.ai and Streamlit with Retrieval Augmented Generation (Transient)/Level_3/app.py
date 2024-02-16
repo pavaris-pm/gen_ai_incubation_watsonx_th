@@ -17,6 +17,22 @@ from langchain.vectorstores import FAISS, Chroma
 from PIL import Image
 from sentence_transformers import SentenceTransformer, models
 from langChainInterface import LangChainInterface
+from langchain.embeddings.openai import OpenAIEmbeddings
+import numpy as np
+import faiss
+import re
+
+def filter_text(input_text):
+    # Regular expression to match Thai and English characters and numbers
+    pattern = re.compile(r'[0-9A-Za-zก-๙\s]')
+    
+    # Use findall to extract all matching characters
+    filtered_characters = re.findall(pattern, input_text)
+    
+    # Join the characters back into a string
+    filtered_text = ''.join(filtered_characters)
+
+    return filtered_text
 
 # Most GENAI logs are at Debug level.
 logging.basicConfig(level=os.environ.get("LOGLEVEL", "DEBUG"))
@@ -78,7 +94,7 @@ with st.sidebar:
 uploaded_files = st.file_uploader("Choose a PDF file", accept_multiple_files=True)
 
 @st.cache_data
-def read_pdf(uploaded_files,chunk_size =250,chunk_overlap=20):
+def read_pdf(uploaded_files,chunk_size =1000,chunk_overlap=20):
     for uploaded_file in uploaded_files:
       bytes_data = uploaded_file.read()
       with tempfile.NamedTemporaryFile(mode='wb', delete=False) as temp_file:
@@ -92,6 +108,25 @@ def read_pdf(uploaded_files,chunk_size =250,chunk_overlap=20):
              docs = text_splitter.split_documents(data)
              return docs
 
+def vector_search(query, model, index, num_results=10):
+    """
+    Transforms query to vector using a pretrained model and finds similar vectors using FAISS.
+    
+    Args:
+        query (str): User query that should be more than a sentence long.
+        model: Model used for generating embeddings.
+        index (faiss.IndexIDMap): FAISS index.
+        num_results (int): Number of results to return.
+    
+    Returns:
+        D (:obj:`numpy.array` of `float`): Distance between results and query.
+        I (:obj:`numpy.array` of `int`): Document IDs of the results.
+    """
+    vector = model.encode([query])
+    D, I = index.search(np.array(vector).astype("float32"), k=num_results)
+    return D, I
+
+
 def get_model(model_name='airesearch/wangchanberta-base-att-spm-uncased', max_seq_length=768, condition=True):
     if condition:
         # model_name = 'airesearch/wangchanberta-base-att-spm-uncased'
@@ -104,7 +139,7 @@ def get_model(model_name='airesearch/wangchanberta-base-att-spm-uncased', max_se
 def generate_prompt(question, context, model_type="llama-2"):
     if model_type =="llama-2":
         output = f"""[INST] <<SYS>>
-You are a helpful, respectful assistant. Always answer as helpfully as possible, while being safe. Your answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, or illegal content. Please ensure that your responses are socially unbiased and positive in nature. If a question does not make any sense, or is not factually coherent, explain why instead of answering something not correct. If you don't know the answer to a question, please don't share false information.
+You are a helpful, respectful Thai assistant. Always answer as helpfully as possible, while being safe. Your answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, or illegal content. Please ensure that your responses are socially unbiased and positive in nature. If a question does not make any sense, or is not factually coherent, explain why instead of answering something not correct. If you don't know the answer to a question, please don't share false information.
 
 You will receive HR Policy on user queries HR POLICY DETAILS, and QUESTION from user in the ''' below. Answer the question in Thai.
 '''
@@ -113,52 +148,104 @@ HR POLICY DETAILS:
 
 QUESTION: {question}
 '''
-Answer the QUESTION use details about 8D Report from HR POLICY DETAILS, explain your reasonings if the question is not related to REFERENCE please Answer
+Answer the QUESTION use details about HR Policy from HR POLICY DETAILS, explain your reasonings if the question is not related to REFERENCE please Answer
 “I don’t know the answer, it is not part of the provided HR Policy”.
 <</SYS>>
 
-QUESTION: {question} [/INST]
-ANSWER:
+คำถาม: {question} [/INST]
+คำตอบของถามเป็นภาษาไทย:
     """
     else:
         return "Only llama-2 format at the moment, fill here to add other prompt templates for other model types."
     return output
 
+embeddings_model = get_model(model_name='kornwtp/simcse-model-phayathaibert', max_seq_length=768)
 @st.cache_data
 def read_push_embeddings():
-    # embeddings = get_model(model_name='kornwtp/simcse-model-phayathaibert', max_seq_length=768)
-    embeddings = HuggingFaceHubEmbeddings(repo_id="sentence-transformers/all-MiniLM-L6-v2", huggingfacehub_api_token=hgface_token)
+    # Use your get_model function to get the embeddings model
+
+    global docs  # Ensure that docs is accessible globally or passed as a parameter
+    if not docs:
+        raise ValueError("Documents are not loaded or empty.")
+    
+    docs_texts = [doc.page_content for doc in docs]
+    # Check if the FAISS index already exists
     if os.path.exists("db.pickle"):
-        with open("db.pickle",'rb') as file_name:
-            db = pickle.load(file_name)
-    else:     
-        db = FAISS.from_documents(docs, embeddings)
-        with open('db.pickle','wb') as file_name  :
-             pickle.dump(db,file_name)
-        st.write("\n")
-    return db
+        with open("db.pickle", 'rb') as file_name:
+            index = pickle.load(file_name)
+    else:
+        # Encode the documents using the embeddings model
+        embeddings = embeddings_model.encode(docs_texts)
+
+        # Step 1: Change data type
+        embeddings = np.array(embeddings).astype("float32")
+
+        # Step 2: Instantiate the index
+        index = faiss.IndexFlatL2(embeddings.shape[1])
+
+        # Step 3: Pass the index to IndexIDMap
+        index = faiss.IndexIDMap(index)
+
+        # Step 4: Add vectors and their IDs
+        doc_ids = np.array(range(len(docs_texts))).astype('int64')
+
+        index.add_with_ids(embeddings, doc_ids)
+
+        # Save the index for future use
+        with open('db.pickle', 'wb') as file_name:
+            pickle.dump(index, file_name)
+
+    return index
+
+def format_documents(docs):
+    formatted_docs = []
+    for i, doc in enumerate(docs):
+        formatted_doc = {
+            "reference_number": i + 1,  # Assuming you want to start numbering from 1
+            "page_content": doc.page_content,
+            "source": "page " + str(doc.metadata.get('page', 'Unknown'))
+        }
+        formatted_docs.append(formatted_doc)
+    return formatted_docs
+
+def format_docs_for_display(docs):
+    formatted_text = ""
+    for doc in docs:
+        formatted_text += f"Reference Number: {doc['reference_number']}\n"
+        formatted_text += f"Source: {doc['source']}\n"
+        formatted_text += f"Content:\n{doc['page_content']}\n"
+        formatted_text += "-" * 40 + "\n"  # Separator
+    return formatted_text
+
+
 
 # show user input
 if user_question := st.text_input(
     "Ask a question about your Policy Document:"
 ):
     docs = read_pdf(uploaded_files)
-    db = read_push_embeddings()
-    docs = db.similarity_search(user_question)
+    print("DOCS HERE", docs)
+    index = read_push_embeddings()
+    D, I = vector_search(user_question, embeddings_model, index, num_results=4)
+    search_results = [docs[i] for i in I[0]]
+    # docs = db.similarity_search(user_question)
     params = {
         GenParams.DECODING_METHOD: "greedy",
         GenParams.MIN_NEW_TOKENS: 30,
-        GenParams.MAX_NEW_TOKENS: 300,
+        GenParams.MAX_NEW_TOKENS: 500,
         GenParams.TEMPERATURE: 0.0,
         # GenParams.TOP_K: 100,
         # GenParams.TOP_P: 1,
         GenParams.REPETITION_PENALTY: 1
     }
     model_llm = LangChainInterface(model='ibm-mistralai/mixtral-8x7b-instruct-v01-q', credentials=creds, params=params, project_id=project_id)
-    
-    response = model_llm(generate_prompt(user_question, docs))
-    print(generate_prompt(user_question, docs))
+    formated_search = format_documents(search_results)
+    response = model_llm(generate_prompt(user_question, formated_search))
+    print(generate_prompt(user_question, formated_search))
     # response = chain.run(input_documents=docs, question=user_question)
+    # Call the function with your formatted_docs
+    formatted_text_for_display = format_docs_for_display(formated_search)
 
-    st.text_area(label="Model Response", value=response, height=100)
+    st.text_area(label="Model Response", value=filter_text(response), height=300)
+    st.text_area(label="Reference", value=formatted_text_for_display, height=300)
     st.write()

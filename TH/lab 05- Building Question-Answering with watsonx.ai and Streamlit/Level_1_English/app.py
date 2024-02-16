@@ -37,7 +37,7 @@ params = {
     # GenParams.TEMPERATURE: 0.2,
     # GenParams.TOP_K: 100,
     # GenParams.TOP_P: 1,
-    GenParams.REPETITION_PENALTY: 1
+    GenParams.REPETITION_PENALTY: 1.05
 }
 
 models = {
@@ -49,16 +49,27 @@ models = {
 # define LangChainInterface model
 llm = LangChainInterface(model=models["mixstral"], credentials=creds, params=params, project_id=project_id)
 
-def prompt_template(question):
-    text = f"""[INST] <<SYS>>
-You are a multilingual, helpful, respectful and honest assistant. Please always answer as helpfully as possible, while being safe. Your answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, or illegal content. Please ensure that your responses are socially unbiased and positive in nature.
+def prompt_template(question, lang="English"):
+    if lang == "en":
+        text = f"""[INST] <<SYS>>
+    You are a helpful, respectful and honest assistant. Always answer as helpfully as possible, while being safe.  Your answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, or illegal content. Please ensure that your responses are socially unbiased and positive in nature.
 
-If a question does not make any sense, or is not factually coherent, explain why instead of answering something not correct. If you don't know the answer to a question, please don't share false information.
+    If a question does not make any sense, or is not factually coherent, explain why instead of answering something not correct. If you don't know the answer to a question, please don't share false information.
+    <</SYS>>
 
-As a multilingual assistant, you must respond and follow instructions in the native language of the user by default, unless told otherwise. Your response should adapt to the norms and customs of the respective language and culture.
-<</SYS>>
+    QUESTION: {question} [/INST] ANSWER:"""
+    elif lang == "th":
+        text = f"""[INST] <<SYS>>
+    You are a helpful, respectful native Thai assistant. Always answer as helpfully as possible, while being safe.  Your answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, or illegal content. Please ensure that your responses are socially unbiased and positive in nature.
 
-QUESTION: {question} [/INST] ANSWER:"""
+    If a question does not make any sense, or is not factually coherent, explain why instead of answering something not correct. If you don't know the answer to a question, please don't share false information.
+    
+    You will receive QUESTION from user in the ''' below. Please Answer the QUESTION in Thai language.
+    <</SYS>>
+    ```
+    QUESTION: {question}
+    ```
+    คำถาม: {question} [/INST] คำตอบของถามเป็นภาษาไทย:"""
     return text
 
 # Title for the app
@@ -68,7 +79,7 @@ prompt = st.text_input('Enter your prompt here')
 # If a user hits enter
 if prompt: 
     # Pass the prompt to the llm
-    response = llm(prompt_template(prompt))
+    response = llm(prompt_template(prompt, lang="th"))
     # Write the output to the screen
     st.write(response)
 
