@@ -46,6 +46,14 @@ models = {
     "llama2": "meta-llama/llama-2-70b-chat",
     "mixstral": 'ibm-mistralai/mixtral-8x7b-instruct-v01-q'
 }
+
+def detect_language(text):
+    thai_chars = set("กขฃคฅฆงจฉชซฌญฎฏฐฑฒณดตถทธนบปผฝพฟภมยรลวศษสหฬอฮะัาำิีึืุูเแโใไ็่้๊๋์")
+    if any(char in thai_chars for char in text):
+        return "th"
+    else:
+        return "en"
+
 # define LangChainInterface model
 llm = LangChainInterface(model=models["mixstral"], credentials=creds, params=params, project_id=project_id)
 
@@ -60,16 +68,16 @@ def prompt_template(question, lang="en"):
     QUESTION: {question} [/INST] ANSWER:"""
     elif lang == "th":
         text = f"""[INST] <<SYS>>
-    You are a helpful, respectful native Thai assistant. Always answer as helpfully as possible, while being safe.  Your answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, or illegal content. Please ensure that your responses are socially unbiased and positive in nature.
+    คุณเป็นผู้ช่วยที่เป็นประโยชน์และให้ความเคารพ โปรดตอบอย่างเป็นประโยชน์ที่สุดเท่าที่จะเป็นไปได้เสมอโดยต้องปลอดภัย คำตอบของคุณไม่ควรมีเนื้อหาที่เป็นอันตราย ผิดจรรยาบรรณ เหยียดเชื้อชาติ เหยียดเพศ เป็นพิษ เป็นอันตราย หรือผิดกฎหมาย โปรดตรวจสอบให้แน่ใจว่าคำตอบของคุณมีลักษณะเป็นกลางทางสังคมและมีลักษณะเชิงบวก
 
-    If a question does not make any sense, or is not factually coherent, explain why instead of answering something not correct. If you don't know the answer to a question, please don't share false information.
+     หากคำถามไม่สมเหตุสมผลหรือไม่สอดคล้องกันตามข้อเท็จจริง ให้อธิบายเหตุผลแทนที่จะตอบสิ่งที่ไม่ถูกต้อง หากคุณไม่ทราบคำตอบสำหรับคำถาม โปรดอย่าเปิดเผยข้อมูลที่เป็นเท็จ
     
-    You will receive QUESTION from user in the ''' below. Please Answer the QUESTION in Thai language.
+     คุณจะได้รับคำถามจากผู้ใช้ใน ''' ด้านล่าง กรุณาตอบคำถามเป็นภาษาไทย
     <</SYS>>
     ```
-    QUESTION: {question}
+    คำถาม: {question}
     ```
-    คำถาม: {question} [/INST] คำตอบของถามเป็นภาษาไทย:"""
+    คำถาม: {question} [/INST] คำตอบ:"""
     return text
 
 # Title for the app
@@ -79,7 +87,12 @@ prompt = st.text_input('Enter your prompt here')
 # If a user hits enter
 if prompt: 
     # Pass the prompt to the llm
-    response = llm(prompt_template(prompt, lang="en"))
+    users_language = detect_language(prompt)
+    if users_language == "th":
+        current_prompt = prompt_template(prompt, lang="th")
+    elif users_language == "en":
+        current_prompt = prompt_template(prompt, lang="en")
+    response = llm(current_prompt)
     # Write the output to the screen
     st.write(response)
 
