@@ -23,7 +23,7 @@ from langChainInterface import LangChainInterface
 from langchain.embeddings.openai import OpenAIEmbeddings
 import numpy as np
 import faiss
-from function import vector_search, get_model, generate_prompt, format_docs_for_display, format_documents
+from function import vector_search, get_model, generate_prompt_th, generate_prompt_en, format_docs_for_display, format_documents, detect_language
 
 # Most GENAI logs are at Debug level.
 logging.basicConfig(level=os.environ.get("LOGLEVEL", "DEBUG"))
@@ -73,7 +73,7 @@ with st.sidebar:
     st.write('Powered by [IBM watsonx.ai](https://www.ibm.com/products/watsonx-ai)')
     image = Image.open('watsonxai.jpg')
     st.image(image, caption='Powered by watsonx.ai')
-    max_new_tokens= st.number_input('max_new_tokens',1,1024,value=300)
+    max_new_tokens= st.number_input('max_new_tokens',1,1024,value=500)
     min_new_tokens= st.number_input('min_new_tokens',0,value=15)
     repetition_penalty = st.number_input('repetition_penalty',1,value=1)
     decoding = st.text_input(
@@ -154,6 +154,7 @@ stream = True
 if user_question := st.text_input(
     "Ask a question about your Policy Document:"
 ):
+    users_language = detect_language(user_question)
     docs = read_pdf(uploaded_files)
     print("DOCS HERE", docs)
     index = read_push_embeddings()
@@ -187,17 +188,22 @@ if user_question := st.text_input(
     formated_search = format_documents(search_results)
     # 
     formatted_text_for_display = format_docs_for_display(formated_search)
-    print(generate_prompt(user_question, formated_search))
+
+    if users_language == "th":
+        current_prompt = generate_prompt_th(user_question, formated_search)
+    elif users_language == "en":
+        current_prompt = generate_prompt_en(user_question, formated_search)
+    print(current_prompt)
     # response = chain.run(input_documents=docs, question=user_question)
     # Call the function with your formatted_docs
     
     if stream == False:
-        joined_result = model_llm.generate_text(generate_prompt(user_question, formated_search))
+        joined_result = model_llm.generate_text(current_prompt)
         st.text_area(label="Model Response", value=joined_result, height=300)
     elif stream == True:
         model_response_placeholder = st.empty()
         full_response = []
-        for response in model_llm.generate_text_stream(prompt=generate_prompt(user_question, formated_search)):
+        for response in model_llm.generate_text_stream(prompt=current_prompt):
                 wordstream = str(response)
                 print(response)
                 if wordstream:

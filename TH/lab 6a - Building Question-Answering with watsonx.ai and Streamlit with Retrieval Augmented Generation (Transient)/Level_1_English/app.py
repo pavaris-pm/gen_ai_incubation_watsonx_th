@@ -117,10 +117,10 @@ if user_question := st.text_input(
         # GenParams.TOP_P: 1,
         GenParams.REPETITION_PENALTY: 1
     }
-    model_llm = LangChainInterface(model=ModelTypes.LLAMA_2_70B_CHAT.value, credentials=creds, params=params, project_id=project_id)
+    model_llm = LangChainInterface(model='ibm-mistralai/mixtral-8x7b-instruct-v01-q', credentials=creds, params=params, project_id=project_id)
     chain = load_qa_chain(model_llm, chain_type="stuff")
 
     response = chain.run(input_documents=docs, question=user_question)
 
-    st.text_area(label="Model Response", value=response, height=100)
+    st.text_area(label="Model Response", value=response, height=300)
     st.write()

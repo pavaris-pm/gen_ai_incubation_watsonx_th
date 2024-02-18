@@ -49,7 +49,7 @@ models = {
 # define LangChainInterface model
 llm = LangChainInterface(model=models["mixstral"], credentials=creds, params=params, project_id=project_id)
 
-def prompt_template(question, lang="English"):
+def prompt_template(question, lang="en"):
     if lang == "en":
         text = f"""[INST] <<SYS>>
     You are a helpful, respectful and honest assistant. Always answer as helpfully as possible, while being safe.  Your answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, or illegal content. Please ensure that your responses are socially unbiased and positive in nature.
@@ -79,7 +79,7 @@ prompt = st.text_input('Enter your prompt here')
 # If a user hits enter
 if prompt: 
     # Pass the prompt to the llm
-    response = llm(prompt_template(prompt, lang="th"))
+    response = llm(prompt_template(prompt, lang="en"))
     # Write the output to the screen
     st.write(response)
 
