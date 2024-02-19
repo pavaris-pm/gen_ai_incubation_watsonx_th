@@ -8,7 +8,6 @@ So I'm guessing you've been hearing a bit about watsonx. Well...now you can buil
 4. Add HuggingFaceToken to .env file. See HuggingFace API Setup section below.
 5. Run the app by running the command `streamlit run app.py`.
 
-
 # HuggingFace API Setup
 1. Sign In or Sign Up on https://huggingface.co/.
 2. Go on Profile (avatar) and click on "Settings".

@@ -48,11 +48,21 @@ params = {
 models = {
     "granite_chat":"ibm/granite-13b-chat-v2",
     "flanul": "google/flan-ul2",
-    "llama2": "meta-llama/llama-2-70b-chat"
+    "llama2": "meta-llama/llama-2-70b-chat",
+    "mixstral": 'ibm-mistralai/mixtral-8x7b-instruct-v01-q'
 }
 # define LangChainInterface model
-llm = LangChainInterface(model=models["llama2"], credentials=creds, params=params, project_id=project_id)
+llm = LangChainInterface(model=models["mixstral"], credentials=creds, params=params, project_id=project_id)
 
+def prompt_template(question):
+    text = f"""[INST] <<SYS>>
+You are a helpful, respectful and honest assistant. Always answer as helpfully as possible, while being safe.  Your answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, or illegal content. Please ensure that your responses are socially unbiased and positive in nature.
+
+If a question does not make any sense, or is not factually coherent, explain why instead of answering something not correct. If you don't know the answer to a question, please don't share false information.
+<</SYS>>
+
+QUESTION: {question} [/INST] ANSWER:"""
+    return text
 
 # Title for the app
 st.title('🤖 Our First Q&A Front End')
@@ -66,11 +76,12 @@ if prompt:
     text_to_model =  translate_to_thai(prompt, False)
     print('text_to_model')
     print(text_to_model)
-    response_from_model = llm(text_to_model)
+    response_from_model = llm(prompt_template(text_to_model))
     print(response_from_model)
 
     if users_language == "th":
         translated_response = translate_to_thai(response_from_model, True)
+        text_to_user = translated_response
     else:
         text_to_user = response_from_model
     # Write the output to the screen
