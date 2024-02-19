@@ -75,14 +75,14 @@ with st.sidebar:
         )
     
 params = {
-    GenParams.DECODING_METHOD: decoding,
-    GenParams.MIN_NEW_TOKENS: min_new_tokens,
-    GenParams.MAX_NEW_TOKENS: max_new_tokens,
-    GenParams.TEMPERATURE: 0.0,
-    GenParams.STOP_SEQUENCES: ['END_KEY'],
+    'decoding_method': decoding,
+    'min_new_tokens': min_new_tokens,
+    'max_new_tokens': max_new_tokens,
+    'temperature': 0.0,
+    'stop_sequences': ['END_KEY'],
     # GenParams.TOP_K: 100,
     # GenParams.TOP_P: 1,
-    GenParams.REPETITION_PENALTY: repetition_penalty
+    'repetition_penalty': repetition_penalty
 }
     
 uploaded_files = st.file_uploader("Choose a PDF file", accept_multiple_files=True)

@@ -162,24 +162,23 @@ if user_question := st.text_input(
     search_results = [docs[i] for i in I[0]]
     # docs = db.similarity_search(user_question)
     # params = {
-    #     GenParams.DECODING_METHOD: "greedy",
-    #     GenParams.MIN_NEW_TOKENS: 30,
-    #     GenParams.MAX_NEW_TOKENS: 500,
-    #     GenParams.TEMPERATURE: 0.0,
+    #     'decoding_method': "greedy",
+    #     'min_new_tokens': 30,
+    #     'max_new_tokens': 500,
+    #     'temperature': 0.0,
     #     # GenParams.TOP_K: 100,
     #     # GenParams.TOP_P: 1,
-    #     GenParams.REPETITION_PENALTY: 1
+    #     'repetition_penalty': 1
     # }
     params = {
-        GenParams.DECODING_METHOD: decoding,
-        GenParams.MIN_NEW_TOKENS: min_new_tokens,
-        GenParams.MAX_NEW_TOKENS: max_new_tokens,
-        # GenParams.RANDOM_SEED: 42,
-        # GenParams.TEMPERATURE: 0.7,
-        GenParams.REPETITION_PENALTY: 1,
-        GenParams.RETURN_OPTIONS: {ReturnOptions.GENERATED_TOKENS: True,
-                                    ReturnOptions.GENERATED_TOKENS: True,
-                                    ReturnOptions.INPUT_TOKENS: True}
+        'decoding_method': decoding,
+        'min_new_tokens': min_new_tokens,
+        'max_new_tokens': max_new_tokens,
+        'random_seed': 42,
+        # 'temperature': 0.7,
+        'repetition_penalty': 1.03,
+        # GenParams.RETURN_OPTIONS: {ReturnOptions.GENERATED_TOKENS: True,
+        #                             ReturnOptions.INPUT_TOKENS: True}
     }
     # model_llm = LangChainInterface(model='ibm-mistralai/mixtral-8x7b-instruct-v01-q', credentials=creds, params=params, project_id=project_id)
     model_llm = Model('ibm-mistralai/mixtral-8x7b-instruct-v01-q',

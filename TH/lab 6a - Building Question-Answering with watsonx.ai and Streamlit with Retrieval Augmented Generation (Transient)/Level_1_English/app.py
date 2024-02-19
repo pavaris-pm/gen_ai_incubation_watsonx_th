@@ -109,13 +109,13 @@ if user_question := st.text_input(
     db = read_push_embeddings()
     docs = db.similarity_search(user_question)
     params = {
-        GenParams.DECODING_METHOD: "greedy",
-        GenParams.MIN_NEW_TOKENS: 30,
-        GenParams.MAX_NEW_TOKENS: 300,
-        GenParams.TEMPERATURE: 0.0,
+        'decoding_method': "greedy",
+        'min_new_tokens': 30,
+        'max_new_tokens': 300,
+        'temperature': 0.0,
         # GenParams.TOP_K: 100,
         # GenParams.TOP_P: 1,
-        GenParams.REPETITION_PENALTY: 1
+        'repetition_penalty': 1
     }
     model_llm = LangChainInterface(model='ibm-mistralai/mixtral-8x7b-instruct-v01-q', credentials=creds, params=params, project_id=project_id)
     chain = load_qa_chain(model_llm, chain_type="stuff")
