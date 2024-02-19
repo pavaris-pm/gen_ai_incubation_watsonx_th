@@ -36,13 +36,13 @@ else:
 
 # Define generation parameters 
 params = {
-    GenParams.DECODING_METHOD: "sample",
-    GenParams.MIN_NEW_TOKENS: 1,
-    GenParams.MAX_NEW_TOKENS: 300,
-    GenParams.TEMPERATURE: 0.2,
+    'decoding_method': "sample",
+    'min_new_tokens': 1,
+    'max_new_tokens': 300,
+    'temperature': 0.2,
     # GenParams.TOP_K: 100,
     # GenParams.TOP_P: 1,
-    GenParams.REPETITION_PENALTY: 1
+    'repetition_penalty': 1
 }
 
 models = {
