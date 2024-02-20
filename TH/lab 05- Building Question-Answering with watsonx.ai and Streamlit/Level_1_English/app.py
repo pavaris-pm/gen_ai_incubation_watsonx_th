@@ -5,6 +5,8 @@ from ibm_watson_machine_learning.metanames import GenTextParamsMetaNames as GenP
 from langchain.llms.base import LLM
 # Import lang Chain Interface object
 from langChainInterface import LangChainInterface
+from ibm_watsonx_ai.foundation_models import Model 
+from ibm_watsonx_ai.foundation_models.extensions.langchain import WatsonxLLM
 # Import langchain prompt templates
 from langchain.prompts import PromptTemplate
 # Import system libraries
@@ -56,7 +58,15 @@ def detect_language(text):
         return "en"
 
 # define LangChainInterface model
-llm = LangChainInterface(model=models["mixstral"], credentials=creds, params=params, project_id=project_id)
+# llm = LangChainInterface(model=models["mixstral"], credentials=creds, params=params, project_id=project_id)
+
+model = Model(
+    model_id=models["mixstral"],
+    params=params,
+    credentials=creds,
+    project_id=project_id,
+    space_id=None)
+llm = WatsonxLLM(model)
 
 def prompt_template(question, lang="en"):
     if lang == "en":

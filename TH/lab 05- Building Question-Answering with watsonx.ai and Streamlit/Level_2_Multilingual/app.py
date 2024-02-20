@@ -3,6 +3,8 @@ from dotenv import load_dotenv
 # Import IBMGen Library 
 from ibm_watson_machine_learning.metanames import GenTextParamsMetaNames as GenParams
 from langchain.llms.base import LLM
+from ibm_watsonx_ai.foundation_models.extensions.langchain import WatsonxLLM
+from ibm_watsonx_ai.foundation_models import Model 
 # Import lang Chain Interface object
 from langChainInterface import LangChainInterface
 # Import langchain prompt templates
@@ -52,7 +54,14 @@ models = {
     "mixstral": 'ibm-mistralai/mixtral-8x7b-instruct-v01-q'
 }
 # define LangChainInterface model
-llm = LangChainInterface(model=models["mixstral"], credentials=creds, params=params, project_id=project_id)
+# llm = LangChainInterface(model=models["mixstral"], credentials=creds, params=params, project_id=project_id)
+model = Model(
+    model_id=models["mixstral"],
+    params=params,
+    credentials=creds,
+    project_id=project_id,
+    space_id=None)
+llm = WatsonxLLM(model)
 
 def prompt_template(question):
     text = f"""[INST] <<SYS>>

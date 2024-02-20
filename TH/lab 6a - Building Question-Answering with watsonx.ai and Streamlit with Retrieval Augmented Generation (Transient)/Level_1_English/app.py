@@ -13,6 +13,8 @@ from langchain.document_loaders import PyPDFLoader
 from langchain.embeddings import (HuggingFaceHubEmbeddings,
                                   HuggingFaceInstructEmbeddings)
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+from ibm_watsonx_ai.foundation_models import Model 
+from ibm_watsonx_ai.foundation_models.extensions.langchain import WatsonxLLM
 from langchain.vectorstores import FAISS, Chroma
 from PIL import Image
 
@@ -117,7 +119,14 @@ if user_question := st.text_input(
         # GenParams.TOP_P: 1,
         'repetition_penalty': 1
     }
-    model_llm = LangChainInterface(model='ibm-mistralai/mixtral-8x7b-instruct-v01-q', credentials=creds, params=params, project_id=project_id)
+    model = Model(
+        model_id='ibm-mistralai/mixtral-8x7b-instruct-v01-q',
+        params=params,
+        credentials=creds,
+        project_id=project_id,
+        space_id=None)
+    model_llm = WatsonxLLM(model)
+    # model_llm = LangChainInterface(model='ibm-mistralai/mixtral-8x7b-instruct-v01-q', credentials=creds, params=params, project_id=project_id)
     chain = load_qa_chain(model_llm, chain_type="stuff")
 
     response = chain.run(input_documents=docs, question=user_question)

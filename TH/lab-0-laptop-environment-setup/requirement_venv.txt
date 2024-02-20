@@ -20,3 +20,4 @@ googletrans==3.1.0a0
 pymilvus==2.3.2
 PyMuPDF
 milvus==2.3.3
+ibm-watsonx-ai==0.1.8
