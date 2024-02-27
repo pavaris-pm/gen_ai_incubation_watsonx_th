@@ -171,12 +171,12 @@ if user_question := st.text_input(
     #     'repetition_penalty': 1
     # }
     params = {
-        'decoding_method': decoding,
+        'decoding_method': 'greedy',
         'min_new_tokens': min_new_tokens,
         'max_new_tokens': max_new_tokens,
         'random_seed': 42,
         # 'temperature': 0.7,
-        'repetition_penalty': 1.03,
+        # 'repetition_penalty': 1.03,
         # GenParams.RETURN_OPTIONS: {ReturnOptions.GENERATED_TOKENS: True,
         #                             ReturnOptions.INPUT_TOKENS: True}
     }

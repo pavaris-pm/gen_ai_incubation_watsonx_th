@@ -59,7 +59,7 @@ def detect_language(text):
 #         return "Only llama-2 format at the moment, fill here to add other prompt templates for other model types."
 #     return output 
 
-def generate_prompt_th(question, context, model_type="llama-2"):
+def generate_prompt_th(question, context, model_type="mixtral"):
     if model_type =="llama-2":
         output = f"""[INST] <<SYS>>
 คุณเป็นผู้ช่วยที่ใจดี โปรดตอบคำถามอย่างมีใจดีและประโยชน์ที่สุดเสมอ พร้อมกับรักษาความปลอดภัย คำตอบของคุณไม่ควรมีเนื้อหาที่เป็นอันตราย ไม่ธรรมดา แบ่งแยกทางเชื้อชาติ ลำเอียงทางเพศ มีพิษ อันตราย หรือผิดกฎหมาย โปรดให้แน่ใจว่าคำตอบของคุณไม่มีอคติทางสังคมและเป็นบวกในธรรมชาติ ถ้าคำถามไม่มีเหตุผล หรือไม่สอดคล้องกับความเป็นจริง โปรดอธิบายเหตุผลแทนที่จะตอบคำถามที่ไม่ถูกต้อง ถ้าคุณไม่ทราบคำตอบของคำถาม โปรดอย่าแชร์ข้อมูลที่ผิด
@@ -78,6 +78,25 @@ def generate_prompt_th(question, context, model_type="llama-2"):
 คำถาม: {question} [/INST]
 คำตอบ:
     """
+    elif model_type =="mixtral":
+        output = f"""<s> [INST]
+You are a helpful assistant. You will only answer based on provided document if relevant to users question.[\INST]คุณจะได้รับรายละเอียดในนโยบายทรัพยากรบุคคลตามคำค้นหาของผู้ใช้, HR POLICY, และคำถามจากผู้ใช้, QUESTION, ใน ''' ด้านล่าง
+'''
+HR POLICY: {context}
+QUESTION: {question}
+'''
+ตอบคำถาม ใช้รายละเอียดจาก HR POLICY หากคำถามไม่เกี่ยวข้องกับ HR POLICY ที่ให้ไว้ โปรดตอบเท่านั้น
+“ฉันไม่ทราบคำตอบ ไม่ได้เป็นส่วนหนึ่งของเอกสาร HR POLICY ที่ให้มา”
+ตอบเป็นภาษาไทยครับ
+หลีกเลี่ยงบรรทัดใหม่ให้มากที่สุด
+ตอบแบบสั้นและกระชับ
+กรุณาเขียนให้เป็นภาษาเดียวกัน อย่าใช้ภาษาผสมเช่นในตัวอย่าง 
+'ชดเชยสẽสูญหาย' ควรเป็น 'ชดเชยสูญหาย'
+'ช่วยเหลpler' ควรเป็น 'ช่วยเหลือ', 
+"ขอแ sorry" ควรเป็น 'ขอโทษ'
+"อัพเดตข้อมลัพทัTOAUTOMATICALLY" ควรเป็น "อัพเดตข้อมูลอัตโนมัติ"
+ห้ามใช้ข้อมูลใดๆ นอกเหนือ "HR POLICY" ที่ให้ไว้</s> [INST]
+QUESTION: {question} [\INST]ANSWER:"""
     else:
         return "Only llama-2 format at the moment, fill here to add other prompt templates for other model types."
     return output 
